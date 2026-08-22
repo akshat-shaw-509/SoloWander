@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Clipboard,
   Crosshair,
   MessageSquare,
   Phone,
+  RefreshCw,
   Send,
   Siren,
   WifiOff,
@@ -95,6 +96,52 @@ function mapLink(location: NormalizedSosLocation | null) {
   return `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
 }
 
+function formatLocationTimestamp(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value));
+}
+
+function locationStatusMessage(location: NormalizedSosLocation) {
+  if (location.locationSource === "CURRENT_GPS") {
+    return `Live GPS updated ${formatLocationTimestamp(location.timestamp)}.`;
+  }
+
+  if (location.locationSource === "LAST_KNOWN") {
+    return "Live GPS is not available yet. Using the last confirmed device location.";
+  }
+
+  return "Location access is needed. Allow browser location permission, then refresh GPS.";
+}
+
+function distanceMeters(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+) {
+  const earthRadiusMeters = 6371000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRadians(b.latitude - a.latitude);
+  const dLng = toRadians(b.longitude - a.longitude);
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
 function lastKnownAsResolvedLocation(): NormalizedSosLocation | null {
   const lastKnown = readLastKnownLocation();
 
@@ -173,11 +220,17 @@ export default function TouristSafetyControls({
   const router = useRouter();
   const checkInFormRef = useRef<HTMLFormElement>(null);
   const incidentFormRef = useRef<HTMLFormElement>(null);
+  const lastTelemetryRef = useRef<{
+    latitude: number;
+    longitude: number;
+    sentAt: number;
+  } | null>(null);
   const [location, setLocation] = useState<SimpleLocation>(emptyLocation);
   const [resolvedLocation, setResolvedLocation] =
     useState<NormalizedSosLocation | null>(null);
   const [status, setStatus] = useState("Starting location monitor...");
   const [isLocating, setIsLocating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [queuedCount, setQueuedCount] = useState(0);
 
   const smsTarget = normalizePhone(emergencyContactPhone || emergencyCallNumber);
@@ -192,23 +245,159 @@ export default function TouristSafetyControls({
     .filter(Boolean)
     .join(" ");
 
+  const updateResolvedLocation = useCallback(
+    (nextLocation: NormalizedSosLocation) => {
+      setResolvedLocation(nextLocation);
+      setLocation({
+        lat:
+          nextLocation.latitude === null ? "" : String(nextLocation.latitude),
+        lng:
+          nextLocation.longitude === null ? "" : String(nextLocation.longitude),
+        accuracy:
+          nextLocation.accuracy === null ? "" : String(nextLocation.accuracy),
+      });
+      setStatus(locationStatusMessage(nextLocation));
+    },
+    [],
+  );
+
+  const sendLocationTelemetry = useCallback(
+    async (nextLocation: NormalizedSosLocation) => {
+      if (
+        !sessionId ||
+        nextLocation.locationSource !== "CURRENT_GPS" ||
+        nextLocation.latitude === null ||
+        nextLocation.longitude === null
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      const previous = lastTelemetryRef.current;
+
+      if (
+        previous &&
+        now - previous.sentAt < 60000 &&
+        distanceMeters(previous, {
+          latitude: nextLocation.latitude,
+          longitude: nextLocation.longitude,
+        }) < 25
+      ) {
+        return;
+      }
+
+      lastTelemetryRef.current = {
+        latitude: nextLocation.latitude,
+        longitude: nextLocation.longitude,
+        sentAt: now,
+      };
+
+      try {
+        const response = await fetch("/dashboard/safety/location", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            latitude: nextLocation.latitude,
+            longitude: nextLocation.longitude,
+            accuracy: nextLocation.accuracy,
+            source: "automatic_monitor",
+          }),
+        });
+
+        if (response.ok) {
+          router.refresh();
+        }
+      } catch {
+        lastTelemetryRef.current = previous;
+      }
+    },
+    [router, sessionId],
+  );
+
+  const refreshResolvedLocation = useCallback(
+    async ({ showProgress = false }: { showProgress?: boolean } = {}) => {
+      if (showProgress) {
+        setIsLocating(true);
+        setStatus("Requesting a fresh GPS fix...");
+      }
+
+      try {
+        const nextLocation = await resolveSosLocation();
+        updateResolvedLocation(nextLocation);
+        await sendLocationTelemetry(nextLocation);
+        return nextLocation;
+      } finally {
+        if (showProgress) {
+          setIsLocating(false);
+        }
+      }
+    },
+    [sendLocationTelemetry, updateResolvedLocation],
+  );
+
+  const retryQueued = useCallback(
+    async ({ showProgress = false }: { showProgress?: boolean } = {}) => {
+      if (!navigator.onLine) {
+        setStatus("Still offline. Pending SOS records will retry automatically.");
+        return;
+      }
+
+      if (showProgress) {
+        setIsSyncing(true);
+        setStatus("Retrying pending SOS sync...");
+      }
+
+      try {
+        const results = await syncQueuedSos();
+        const nextCount = await queuedSosCount();
+        setQueuedCount(nextCount);
+
+        if (results.some((result) => result.status === "sent")) {
+          setStatus(
+            nextCount > 0
+              ? "Some pending SOS records synced. The rest will retry automatically."
+              : "All pending SOS records are synced.",
+          );
+          router.refresh();
+        } else if (
+          showProgress &&
+          results.some((result) => result.status === "failed")
+        ) {
+          setStatus("SOS sync retry failed. It will keep retrying automatically.");
+        }
+      } finally {
+        if (showProgress) {
+          setIsSyncing(false);
+        }
+      }
+    },
+    [router],
+  );
+
   useEffect(() => {
     const loadCachedLocation = window.setTimeout(() => {
       setResolvedLocation((current) => current ?? lastKnownAsResolvedLocation());
+      refreshResolvedLocation().catch(() => undefined);
+      retryQueued().catch(() => undefined);
     }, 0);
     queuedSosCount().then(setQueuedCount).catch(() => undefined);
 
     const stopTracking = startContinuousLocationTracking(
       (next) => {
-        setResolvedLocation({
+        const nextLocation = {
           latitude: next.latitude,
           longitude: next.longitude,
           accuracy: next.accuracy,
           timestamp: next.timestamp,
           locationSource: "CURRENT_GPS",
           confidence: 0.9,
-        });
-        setStatus("Location monitor active.");
+        } satisfies NormalizedSosLocation;
+
+        updateResolvedLocation(nextLocation);
+        sendLocationTelemetry(nextLocation).catch(() => undefined);
       },
       (error) => {
         setStatus(
@@ -219,28 +408,44 @@ export default function TouristSafetyControls({
       },
     );
 
-    async function retryQueued() {
-      if (!navigator.onLine) {
-        return;
+    const refreshInterval = window.setInterval(() => {
+      refreshResolvedLocation().catch(() => undefined);
+    }, 60000);
+    const syncInterval = window.setInterval(() => {
+      retryQueued().catch(() => undefined);
+    }, 30000);
+    const handleOnline = () => {
+      retryQueued().catch(() => undefined);
+    };
+    const handleFocus = () => {
+      refreshResolvedLocation().catch(() => undefined);
+      retryQueued().catch(() => undefined);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleFocus();
       }
+    };
 
-      const results = await syncQueuedSos();
-      if (results.some((result) => result.status === "sent")) {
-        setStatus("Pending SOS synced after internet returned.");
-        router.refresh();
-      }
-      queuedSosCount().then(setQueuedCount).catch(() => undefined);
-    }
-
-    window.addEventListener("online", retryQueued);
-    retryQueued();
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.clearTimeout(loadCachedLocation);
+      window.clearInterval(refreshInterval);
+      window.clearInterval(syncInterval);
       stopTracking();
-      window.removeEventListener("online", retryQueued);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [router]);
+  }, [
+    refreshResolvedLocation,
+    retryQueued,
+    sendLocationTelemetry,
+    updateResolvedLocation,
+  ]);
 
   async function submitCheckIn() {
     const form = checkInFormRef.current;
@@ -251,14 +456,9 @@ export default function TouristSafetyControls({
 
     setIsLocating(true);
     const nextLocation = await resolveSosLocation();
-    setResolvedLocation(nextLocation);
+    updateResolvedLocation(nextLocation);
+    await sendLocationTelemetry(nextLocation);
     fillFormLocation(form, nextLocation);
-    setLocation({
-      lat: nextLocation.latitude === null ? "" : String(nextLocation.latitude),
-      lng: nextLocation.longitude === null ? "" : String(nextLocation.longitude),
-      accuracy:
-        nextLocation.accuracy === null ? "" : String(nextLocation.accuracy),
-    });
     setIsLocating(false);
 
     if (nextLocation.latitude === null || nextLocation.longitude === null) {
@@ -290,7 +490,8 @@ export default function TouristSafetyControls({
       deviceInfo,
     });
 
-    setResolvedLocation(nextLocation);
+    updateResolvedLocation(nextLocation);
+    await sendLocationTelemetry(nextLocation);
     setIsLocating(false);
 
     if (!navigator.onLine) {
@@ -339,10 +540,28 @@ export default function TouristSafetyControls({
           Live Safety Check-In
         </h2>
         <p className="mt-1 text-sm text-gray-500">{status}</p>
+        <button
+          type="button"
+          onClick={() =>
+            refreshResolvedLocation({ showProgress: true }).catch(
+              () => undefined,
+            )
+          }
+          disabled={isLocating}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLocating ? "animate-spin" : ""}`} />
+          Refresh GPS
+        </button>
         {resolvedLocation ? (
           <div className="mt-2 rounded-lg bg-[#F5F5F3] p-3 text-xs font-semibold text-gray-600">
             <div>{formatLocationSource(resolvedLocation.locationSource)}</div>
             <div className="mt-1">{formatLocation(resolvedLocation)}</div>
+            {resolvedLocation.timestamp ? (
+              <div className="mt-1">
+                Updated: {formatLocationTimestamp(resolvedLocation.timestamp)}
+              </div>
+            ) : null}
             <div className="mt-1">
               Confidence: {Math.round(resolvedLocation.confidence * 100)}%
             </div>
@@ -384,9 +603,24 @@ export default function TouristSafetyControls({
           </h2>
         </div>
         {queuedCount > 0 ? (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800">
-            <WifiOff className="h-4 w-4" />
-            {queuedCount} SOS record{queuedCount === 1 ? "" : "s"} pending sync.
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800">
+            <div className="flex items-center gap-2">
+              <WifiOff className="h-4 w-4" />
+              {queuedCount} SOS record{queuedCount === 1 ? "" : "s"} pending sync.
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                retryQueued({ showProgress: true }).catch(() => undefined)
+              }
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-white px-2 py-1 text-xs font-bold text-orange-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
+              />
+              Retry
+            </button>
           </div>
         ) : null}
 
@@ -470,13 +704,39 @@ export default function TouristSafetyControls({
 
           <div className="rounded-lg border border-red-100 bg-red-50 p-3">
             <div className="text-sm font-bold text-red-800">
-              Location fallback
+              SOS location
             </div>
+            {resolvedLocation ? (
+              <div className="mt-2 rounded-md bg-white px-3 py-2 text-xs font-semibold text-gray-700">
+                <div>{formatLocationSource(resolvedLocation.locationSource)}</div>
+                <div className="mt-1">{formatLocation(resolvedLocation)}</div>
+                {resolvedLocation.timestamp ? (
+                  <div className="mt-1">
+                    Updated: {formatLocationTimestamp(resolvedLocation.timestamp)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <p className="mt-1 text-xs text-red-700">
               No coordinates required. The app tries live GPS first, then the
               last confirmed device location, then submits with location
               unavailable.
             </p>
+            <button
+              type="button"
+              onClick={() =>
+                refreshResolvedLocation({ showProgress: true }).catch(
+                  () => undefined,
+                )
+              }
+              disabled={isLocating}
+              className="mt-3 inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isLocating ? "animate-spin" : ""}`}
+              />
+              Refresh GPS
+            </button>
             <input
               name="location_note"
               className="mt-3 w-full rounded-lg border border-red-200 px-3 py-2 text-sm outline-none focus:border-red-500"

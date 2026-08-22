@@ -15,6 +15,8 @@ type StoredLocation = {
 const latestLocationKey = "solowander:safety:latest-location";
 const locationHistoryKey = "solowander:safety:location-history";
 const maxHistoryPoints = 12;
+const freshLocationMaxAge = 0;
+const stalePositionMaxAgeMs = 120000;
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -60,6 +62,10 @@ function metersBetween(a: StoredLocation, b: StoredLocation) {
       Math.sin(dLng / 2);
 
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function isFreshPosition(position: GeolocationPosition) {
+  return Date.now() - (position.timestamp || 0) <= stalePositionMaxAgeMs;
 }
 
 export function confidenceFromAccuracy(accuracy: number | null) {
@@ -146,6 +152,10 @@ export function startContinuousLocationTracking(
 
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
+      if (!isFreshPosition(position)) {
+        return;
+      }
+
       const stored = storeLocationFromPosition(position, "CURRENT_GPS");
       onLocation?.(stored);
     },
@@ -154,8 +164,8 @@ export function startContinuousLocationTracking(
     },
     {
       enableHighAccuracy: true,
-      maximumAge: 30000,
-      timeout: 15000,
+      maximumAge: freshLocationMaxAge,
+      timeout: 20000,
     },
   );
 
@@ -164,7 +174,7 @@ export function startContinuousLocationTracking(
   };
 }
 
-function getCurrentPosition(timeout = 8000) {
+function getCurrentPosition(timeout = 12000) {
   return new Promise<GeolocationPosition>((resolve, reject) => {
     if (!isBrowser() || !navigator.geolocation) {
       reject(new Error("Geolocation unavailable"));
@@ -173,7 +183,7 @@ function getCurrentPosition(timeout = 8000) {
 
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
-      maximumAge: 15000,
+      maximumAge: freshLocationMaxAge,
       timeout,
     });
   });
@@ -182,6 +192,11 @@ function getCurrentPosition(timeout = 8000) {
 export async function resolveSosLocation(): Promise<NormalizedSosLocation> {
   try {
     const position = await getCurrentPosition();
+
+    if (!isFreshPosition(position)) {
+      throw new Error("GPS returned a stale position");
+    }
+
     const current = storeLocationFromPosition(position, "CURRENT_GPS");
 
     return {

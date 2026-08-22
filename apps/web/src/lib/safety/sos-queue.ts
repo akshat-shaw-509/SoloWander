@@ -91,8 +91,16 @@ export async function syncQueuedSos() {
   for (const item of queued) {
     try {
       await sendSosPayload({
-        ...item,
-        syncStatus: "PENDING_SYNC",
+        sosId: item.sosId,
+        sessionId: item.sessionId,
+        tripId: item.tripId,
+        incidentType: item.incidentType,
+        description: item.description,
+        locationNote: item.locationNote,
+        location: item.location,
+        deviceInfo: item.deviceInfo,
+        searchArea: item.searchArea,
+        syncStatus: "SENT",
       });
       await removeQueuedSos(item.sosId);
       results.push({ sosId: item.sosId, status: "sent" });

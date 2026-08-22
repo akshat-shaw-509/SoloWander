@@ -70,8 +70,34 @@ type SupabaseLike = {
   };
 };
 
+type SupabaseResult<T = Record<string, unknown>> = {
+  data: T | null;
+  error: unknown;
+};
+
+type DispatchNote = {
+  status: "dispatch_attempted" | "dispatch_failed";
+  note: string;
+};
+
 function compact(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function errorMessage(error: unknown) {
+  if (!error) {
+    return "";
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message?: unknown }).message || "");
+  }
+
+  return String(error);
 }
 
 export function classifyIncident(type: string, description: string) {
@@ -190,6 +216,17 @@ export async function createSafetyIncidentRecord({
     .maybeSingle();
 
   if (existingIncident?.id) {
+    if (payload.syncStatus === "SENT") {
+      await db
+        .from("safety_incidents")
+        .update({
+          sync_status: "SENT",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("client_sos_id", sosId)
+        .eq("user_id", userId);
+    }
+
     return {
       incidentId: String(existingIncident.id),
       sosId,
@@ -198,10 +235,38 @@ export async function createSafetyIncidentRecord({
     };
   }
 
-  const { data: incident, error } = await db
-    .from("safety_incidents")
-    .insert({
-      client_sos_id: sosId,
+  const incidentRecord = {
+    client_sos_id: sosId,
+    user_id: userId,
+    session_id: payload.sessionId || null,
+    trip_id: payload.tripId || null,
+    incident_type: incidentType,
+    severity: triage.severity,
+    status: "reported",
+    description: description || null,
+    lat: location.latitude,
+    lng: location.longitude,
+    location_accuracy_meters: location.accuracy,
+    location_source: location.locationSource,
+    location_timestamp: location.timestamp,
+    location_confidence: location.confidence,
+    sync_status: payload.syncStatus || "SENT",
+    device_info: payload.deviceInfo || {},
+    search_area: payload.searchArea || null,
+    ai_summary: triage.summary,
+  };
+
+  const insertIncident = (values: Record<string, unknown>) =>
+    db
+      .from("safety_incidents")
+      .insert(values)
+      .select("id")
+      .single() as Promise<SupabaseResult>;
+
+  let { data: incident, error } = await insertIncident(incidentRecord);
+
+  if (error) {
+    const fallbackRecord = {
       user_id: userId,
       session_id: payload.sessionId || null,
       trip_id: payload.tripId || null,
@@ -212,19 +277,18 @@ export async function createSafetyIncidentRecord({
       lat: location.latitude,
       lng: location.longitude,
       location_accuracy_meters: location.accuracy,
-      location_source: location.locationSource,
-      location_timestamp: location.timestamp,
-      location_confidence: location.confidence,
-      sync_status: payload.syncStatus || "SENT",
-      device_info: payload.deviceInfo || {},
-      search_area: payload.searchArea || null,
       ai_summary: triage.summary,
-    })
-    .select("id")
-    .single();
+    };
+
+    const fallbackResult = await insertIncident(fallbackRecord);
+    incident = fallbackResult.data;
+    error = fallbackResult.error;
+  }
 
   if (error || !incident?.id) {
-    throw new Error("Unable to create SOS incident");
+    throw new Error(
+      `Unable to create SOS incident${errorMessage(error) ? `: ${errorMessage(error)}` : ""}`,
+    );
   }
 
   await db.from("safety_incident_updates").insert({
@@ -237,23 +301,36 @@ export async function createSafetyIncidentRecord({
         : "Incident reported from tourist safety app.",
   });
 
-  const dispatchResults = await dispatchSafetyIncident({
-    supabase,
-    incidentId: String(incident.id),
-    userId,
-    incidentType,
-    severity: triage.severity,
-    description: description || null,
-    lat: location.latitude,
-    lng: location.longitude,
-    aiSummary: triage.summary,
-  });
+  let dispatchNote: DispatchNote;
+
+  try {
+    const dispatchResults = await dispatchSafetyIncident({
+      supabase,
+      incidentId: String(incident.id),
+      userId,
+      incidentType,
+      severity: triage.severity,
+      description: description || null,
+      lat: location.latitude,
+      lng: location.longitude,
+      aiSummary: triage.summary,
+    });
+    dispatchNote = {
+      status: "dispatch_attempted",
+      note: summarizeDispatchResults(dispatchResults),
+    };
+  } catch (error) {
+    dispatchNote = {
+      status: "dispatch_failed",
+      note: `Incident was recorded, but dispatch automation failed: ${errorMessage(error) || "Unknown error"}`,
+    };
+  }
 
   await db.from("safety_incident_updates").insert({
     incident_id: incident.id,
     user_id: userId,
-    status: "dispatch_attempted",
-    note: summarizeDispatchResults(dispatchResults),
+    status: dispatchNote.status,
+    note: dispatchNote.note,
   });
 
   if (payload.sessionId) {

@@ -35,6 +35,8 @@ export async function POST(request: Request) {
       location: result.location,
     });
   } catch (error) {
+    console.error("Unable to submit SOS incident", error);
+
     return NextResponse.json(
       {
         error:
