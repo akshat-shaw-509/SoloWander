@@ -8,6 +8,8 @@
   --secondary: #1D9E75;
   --info: #185FA5;
   --dark: #1A1A1A;
+  --font-syne: "Trebuchet MS", ui-sans-serif, system-ui, sans-serif;
+  --font-dm-sans: Inter, "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {

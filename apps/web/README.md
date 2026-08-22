@@ -18,14 +18,67 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supabase setup
+
+Login and registration require Supabase configuration. In the Supabase dashboard, open **Project Settings > API** and copy the **Project URL** and **Publishable key** (or legacy `anon` key) into `apps/web/.env.local`:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+```
+
+## Free SOS dispatch setup
+
+SOS incidents are always written to Supabase and streamed to the authority
+dashboard. For a zero-cost build, use Discord and/or Telegram alerts first:
+
+```env
+DISCORD_SOS_WEBHOOK_URL=https://discord.com/api/webhooks/...
+TELEGRAM_BOT_TOKEN=123456:bot-token-from-botfather
+TELEGRAM_CHAT_IDS=-1001234567890,123456789
+```
+
+Optional free-tier email dispatch can be enabled with Resend:
+
+```env
+RESEND_API_KEY=...
+SOS_EMAIL_FROM=SoloWander <alerts@yourdomain.com>
+SOS_EMAIL_TO=control-room@yourdomain.com
+```
+
+You can also post to your own free endpoint:
+
+```env
+SOS_DISPATCH_WEBHOOK_URL=https://your-control-room.example/sos
+SOS_DISPATCH_WEBHOOK_SECRET=optional-shared-secret
+```
+
+SMS, WhatsApp, and automated phone calls require telecom providers and are not
+part of the zero-cost path. Leave these blank unless you choose to pay for them:
+
+```env
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_SMS_FROM=
+TWILIO_WHATSAPP_FROM=
+TWILIO_VOICE_FROM=
+```
+
+When a provider is not configured, the SOS action still succeeds and records a
+dispatch update explaining which channels were sent, skipped, or failed.
+
+Restart the development server after creating or changing this file:
+
+```bash
+npm run dev --workspace=web
+```
+
+Do not commit `.env.local` or share the key publicly. The file is ignored by Git.
 
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 

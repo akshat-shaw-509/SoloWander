@@ -7,6 +7,9 @@ import {
   Bot,
   CheckCircle2,
   ChevronRight,
+  QrCode,
+  Radar,
+  Siren,
   Star
 } from "lucide-react";
 
@@ -56,7 +59,7 @@ export default function LandingPage() {
               Travel solo. <span className="text-[var(--primary)]">Spend smart.</span> Stay safe.
             </h1>
             <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-2xl mx-auto leading-relaxed">
-              The only app built for solo travellers — budget tracker, hostel finder, AI trip planner, and local transport guide in one place.
+              A solo traveller toolkit with Digital Tourist ID, geo-fencing safety, SOS incident response, budget tracking, and local travel intelligence in one place.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
@@ -105,7 +108,7 @@ export default function LandingPage() {
                 { icon: Wallet, label: "Budget" },
                 { icon: MapIcon, label: "Map" },
                 { icon: BedDouble, label: "Stay" },
-                { icon: ShieldAlert, label: "Safety" },
+                { icon: ShieldAlert, label: "Safety App" },
                 { icon: Bot, label: "AI Planner" },
               ].map((feature, idx) => (
                 <div key={idx} className="flex flex-col items-center gap-2 text-gray-500 hover:text-[var(--primary)] transition-colors cursor-pointer">
@@ -159,19 +162,44 @@ export default function LandingPage() {
 
             <div className="flex flex-col md:flex-row items-center gap-12">
               <div className="flex-1 space-y-6">
-                <div className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-[var(--info)] text-sm font-bold tracking-wide">SAFETY HUB</div>
-                <h2 className="font-[family-name:var(--font-heading)] text-3xl md:text-4xl font-bold text-[var(--dark)]">Your digital safety net.</h2>
-                <p className="text-lg text-gray-600">Auto-detect emergency numbers based on your GPS, store essential documents securely, and trigger an SOS alert instantly.</p>
+                <div className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-[var(--info)] text-sm font-bold tracking-wide">TOURIST SAFETY APP</div>
+                <h2 className="font-[family-name:var(--font-heading)] text-3xl md:text-4xl font-bold text-[var(--dark)]">Digital ID, geo-fencing, and SOS in one flow.</h2>
+                <p className="text-lg text-gray-600">Generate a tourist safety pass, start consented location monitoring, receive geo-fence risk alerts, and submit triaged SOS incidents with live coordinates.</p>
                 <ul className="space-y-3">
-                  {['Encrypted document vault', 'Instant SOS WhatsApp broadcast', 'Daily safety checklist'].map((item, i) => (
+                  {['Digital Tourist ID with emergency profile', 'Geo-fence check-ins for Northeast risk zones', 'AI-style incident severity triage'].map((item, i) => (
                     <li key={i} className="flex items-center gap-3 text-gray-700 font-medium">
                       <CheckCircle2 className="w-5 h-5 text-[var(--secondary)]" /> {item}
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="flex-1 w-full aspect-square bg-white rounded-3xl shadow-xl border border-gray-100 flex items-center justify-center p-8">
-                <div className="w-full h-full rounded-xl bg-gray-50 border border-gray-200 border-dashed flex items-center justify-center text-gray-400 font-medium">Safety Hub UI Mockup</div>
+              <div className="flex-1 w-full bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
+                <div className="rounded-2xl border border-gray-200 bg-[#F5F5F3] p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase text-gray-500">Safety status</div>
+                      <div className="mt-1 text-2xl font-bold text-[var(--dark)]">Active</div>
+                    </div>
+                    <Radar className="w-8 h-8 text-[var(--secondary)]" />
+                  </div>
+                  <div className="mt-5 grid grid-cols-3 gap-3 text-center text-sm font-bold">
+                    <div className="rounded-xl bg-white p-3">
+                      <QrCode className="mx-auto mb-2 h-5 w-5 text-[var(--primary)]" />
+                      Digital ID
+                    </div>
+                    <div className="rounded-xl bg-white p-3">
+                      <MapIcon className="mx-auto mb-2 h-5 w-5 text-[var(--info)]" />
+                      Geofence
+                    </div>
+                    <div className="rounded-xl bg-white p-3">
+                      <Siren className="mx-auto mb-2 h-5 w-5 text-red-600" />
+                      SOS
+                    </div>
+                  </div>
+                  <div className="mt-5 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm font-semibold text-orange-800">
+                    Entered mountain road advisory zone. Share check-in before continuing.
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -198,7 +226,7 @@ export default function LandingPage() {
                       <div className="text-sm text-gray-500">{t.country}</div>
                     </div>
                   </div>
-                  <p className="text-gray-700 leading-relaxed">"{t.text}"</p>
+                  <p className="text-gray-700 leading-relaxed">&quot;{t.text}&quot;</p>
                 </div>
               ))}
             </div>
