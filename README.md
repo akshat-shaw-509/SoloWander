@@ -3,19 +3,24 @@
 <div align="center">
 
 [![CI Pipeline](https://github.com/akshat-shaw-509/SoloWander/actions/workflows/ci.yml/badge.svg)](https://github.com/akshat-shaw-509/SoloWander/actions/workflows/ci.yml)
+[![Docker Build & Publish](https://github.com/akshat-shaw-509/SoloWander/actions/workflows/docker-build.yml/badge.svg)](https://github.com/akshat-shaw-509/SoloWander/actions/workflows/docker-build.yml)
 [![Security (CodeQL)](https://github.com/akshat-shaw-509/SoloWander/actions/workflows/codeql.yml/badge.svg)](https://github.com/akshat-shaw-509/SoloWander/actions/workflows/codeql.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16.2.4-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2.4-61dafb?style=flat&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178c6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
-[![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-ef4444?style=flat&logo=turborepo)](https://turbo.build/repo)
-[![Supabase](https://img.shields.io/badge/Supabase-Database_%26_Auth-3ecf8e?style=flat&logo=supabase)](https://supabase.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **The intelligent travel companion built specifically for solo adventurers.**  
 Empowering solo travelers with real-time safety monitoring, offline-first emergency dispatch, budget tracking, hostel recommendations, and community support.
 
-[Live Demo](#deployment) • [Key Features](#features) • [Architecture](#architecture) • [Getting Started](#quick-start) • [Deployment](#deployment)
+<p align="center">
+  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fakshat-shaw-509%2FSoloWander&root-directory=apps%2Fweb&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY">
+    <img src="https://vercel.com/button" alt="Deploy with Vercel" />
+  </a>
+</p>
+
+[Key Features](#-key-features) • [Architecture](#-system-architecture) • [Getting Started](#-quick-start) • [Deployment](#-deployment) • [Releases](https://github.com/akshat-shaw-509/SoloWander/releases)
 
 </div>
 
@@ -25,11 +30,11 @@ Empowering solo travelers with real-time safety monitoring, offline-first emerge
 
 ### 🛡️ Mission-Critical Safety System
 - **Real-Time Location Tracking**: Continuous GPS coordinates sync with configurable intervals and battery awareness.
-- **Offline-First SOS Dispatch**: Queue emergency signals locally when connection drops; syncs automatically once reconnected.
+- **Offline-First SOS Dispatch**: Queue emergency signals locally in IndexedDB when connection drops; syncs automatically once reconnected.
 - **Multi-Channel Emergency Broadcast**: Multi-target alerts dispatched automatically via:
   - 💬 **Discord Webhooks** (Free instant channel broadcast)
   - 🤖 **Telegram Bot API**
-  - 📱 **Twilio SMS**
+  - 📱 **Twilio SMS & Voice**
 - **Authority Command Center**: Dedicated dashboard for emergency responders and trip coordinators to monitor live status, view geofence breaches, and resolve active incidents.
 
 ### 🗺️ Smart Trip & Route Planning
@@ -38,55 +43,26 @@ Empowering solo travelers with real-time safety monitoring, offline-first emerge
 
 ### 💰 Affordability & Budget Engine
 - Live expense tracking with category breakdowns (Accommodation, Food, Transit, Activities).
-- Local cost benchmarks and smart budget recommendations.
+- Multi-currency support and real-time total budget burn-rate calculations.
 
-### 🛏️ Solo Community & Hostels
-- Curated hostel recommendations scored for solo-traveler friendliness, social atmosphere, and security.
-- Verified reviews and solo traveler tips.
+### 🏨 Solo-Rated Stays & Hostels
+- Curated solo-traveler friendly stays.
+- Filter and sort by solo-safety rating, social vibe, and nightly price.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
-SoloWander is architected as an enterprise-grade Turborepo monorepo:
-
-```mermaid
-graph TD
-    ClientWeb["apps/web (Next.js 16 + React 19)"]
-    
-    subgraph Packages ["packages/* (Shared Modules)"]
-        PkgConstants["@solowander/constants"]
-        PkgTypes["@solowander/types"]
-        PkgUtils["@solowander/utils"]
-    end
-    
-    subgraph Backend ["Backend & Database"]
-        SupabaseAuth["Supabase Auth (SSR + JWT)"]
-        PostgresDB["PostgreSQL + RLS Policies"]
-        Realtime["Supabase Realtime Engine"]
-    end
-    
-    subgraph ExternalServices ["External Emergency Dispatch"]
-        Discord["Discord Webhooks"]
-        Telegram["Telegram Bot API"]
-        Twilio["Twilio SMS Gateway"]
-    end
-
-    ClientWeb --> Packages
-    ClientWeb --> Backend
-    ClientWeb --> ExternalServices
-```
-
-### Directory Structure
+SoloWander is engineered as a modern, modular monorepo powered by **Turborepo** and **Next.js 16 (App Router + Turbopack)**:
 
 ```
 SoloWander/
 ├── .github/
-│   ├── workflows/             # CI/CD, CodeQL, and Docker GitHub Actions
-│   ├── ISSUE_TEMPLATE/        # Structured bug & feature request templates
-│   └── dependabot.yml         # Automated dependency security scanners
+│   ├── workflows/             # CI, CodeQL, Docker Build & GHCR Publish, Releases
+│   ├── ISSUE_TEMPLATE/        # Standardized GitHub issue reporting
+│   └── dependabot.yml         # Automated dependency vulnerability scanning
 ├── apps/
-│   └── web/                   # Next.js 16 App Router application
+│   └── web/                   # Next.js 16 Web Application (Standalone Mode)
 │       ├── src/app/           # Routes (Dashboard, Safety, Trips, Auth)
 │       ├── src/components/    # Reusable UI & Safety Controls
 │       └── src/lib/           # Supabase client, safety sync, dispatch
@@ -172,34 +148,41 @@ npm run build
 
 ## 🚢 Deployment
 
-### Option 1: Vercel (Recommended for Web)
+### Option 1: One-Click Vercel Deployment
 
-1. Import your GitHub repository into [Vercel](https://vercel.com/new).
-2. Set **Root Directory** to `apps/web`.
-3. Select **Next.js** framework.
-4. Set Environment Variables:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - *(Optional)* `DISCORD_SOS_WEBHOOK_URL`
-5. Click **Deploy**. Vercel will build using the monorepo cache.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fakshat-shaw-509%2FSoloWander&root-directory=apps%2Fweb&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
-### Option 2: Docker Container (Production / Cloud / VPS)
+1. Click the button above to import into [Vercel](https://vercel.com).
+2. Root directory is automatically detected as `apps/web`.
+3. Provide your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+4. Deploy!
 
-SoloWander includes a lightweight, secure multi-stage Docker build utilizing Next.js `standalone` output:
+### Option 2: Docker / GitHub Container Registry (`ghcr.io`)
+
+The production container image is automatically built and published to GitHub Container Registry on every release:
 
 ```bash
-# Build and run with Docker Compose
+# Pull and run the pre-built container from GitHub Container Registry
+docker run -p 3000:3000 \
+  -e NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
+  -e NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
+  ghcr.io/akshat-shaw-509/solowander:latest
+```
+
+Or build and run locally with Docker Compose:
+
+```bash
 docker compose up --build -d
 ```
 
-Test the container health check:
+Verify service health:
 ```bash
 curl http://localhost:3000/api/health
 ```
 
 ### Option 3: Railway / Render / Fly.io
 
-Use the included [Dockerfile](Dockerfile) which exposes port `3000` and configures non-root system permissions with integrated health checks.
+Use the included [`Dockerfile`](Dockerfile) which exposes port `3000` and configures non-root system permissions with integrated health checks.
 
 ---
 
