@@ -24,6 +24,13 @@ dist/
 # misc
 .DS_Store
 *.pem
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # debug
 npm-debug.log*

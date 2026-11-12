@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { 
   Wallet, 
@@ -75,7 +76,13 @@ export default function LandingPage() {
               <div className="flex -space-x-2">
                 {[1,2,3,4,5].map((i) => (
                   <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center overflow-hidden">
-                    <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="user" className="w-full h-full object-cover" />
+                    <Image
+                      src={`https://i.pravatar.cc/100?img=${i+10}`}
+                      alt="user"
+                      width={32}
+                      height={32}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 ))}
               </div>
@@ -220,7 +227,13 @@ export default function LandingPage() {
               ].map((t, i) => (
                 <div key={i} className="p-8 rounded-3xl bg-[var(--background)] border border-gray-100 shadow-sm relative">
                   <div className="flex items-center gap-4 mb-6">
-                    <img src={`https://i.pravatar.cc/150?img=${i+40}`} alt={t.name} className="w-12 h-12 rounded-full object-cover" />
+                    <Image
+                      src={`https://i.pravatar.cc/150?img=${i+40}`}
+                      alt={t.name}
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
                     <div>
                       <div className="font-bold text-[var(--dark)]">{t.name}</div>
                       <div className="text-sm text-gray-500">{t.country}</div>

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: SoloWander Discussions
+    url: https://github.com/akshat-shaw-509/SoloWander/discussions
+    about: Ask questions, share ideas, and connect with other solo travelers and developers.
+  - name: Security Vulnerability Reporting
+    url: https://github.com/akshat-shaw-509/SoloWander/security/policy
+    about: Please report security vulnerabilities privately.
