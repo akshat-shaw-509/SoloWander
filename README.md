@@ -53,7 +53,6 @@ SoloWander is architected as an enterprise-grade Turborepo monorepo:
 ```mermaid
 graph TD
     ClientWeb["apps/web (Next.js 16 + React 19)"]
-    ClientMobile["apps/mobile (Expo / React Native)"]
     
     subgraph Packages ["packages/* (Shared Modules)"]
         PkgConstants["@solowander/constants"]
@@ -74,9 +73,7 @@ graph TD
     end
 
     ClientWeb --> Packages
-    ClientMobile --> Packages
     ClientWeb --> Backend
-    ClientMobile --> Backend
     ClientWeb --> ExternalServices
 ```
 
@@ -89,11 +86,10 @@ SoloWander/
 │   ├── ISSUE_TEMPLATE/        # Structured bug & feature request templates
 │   └── dependabot.yml         # Automated dependency security scanners
 ├── apps/
-│   ├── web/                   # Next.js 16 App Router application
-│   │   ├── src/app/           # Routes (Dashboard, Safety, Trips, Auth)
-│   │   ├── src/components/    # Reusable UI & Safety Controls
-│   │   └── src/lib/           # Supabase client, safety sync, dispatch
-│   └── mobile/                # Expo cross-platform mobile application
+│   └── web/                   # Next.js 16 App Router application
+│       ├── src/app/           # Routes (Dashboard, Safety, Trips, Auth)
+│       ├── src/components/    # Reusable UI & Safety Controls
+│       └── src/lib/           # Supabase client, safety sync, dispatch
 ├── packages/
 │   ├── constants/             # Shared constants and configurations
 │   ├── types/                 # Shared TypeScript models and interfaces

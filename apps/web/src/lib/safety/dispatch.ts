@@ -433,7 +433,11 @@ export async function dispatchSafetyIncident({
     sendEmail(subject, text),
   ];
 
-  for (const chatId of splitCsv(env("TELEGRAM_CHAT_IDS"))) {
+  const telegramChatTargets = splitCsv(
+    env("TELEGRAM_CHAT_IDS") || env("TELEGRAM_CHAT_ID"),
+  );
+
+  for (const chatId of telegramChatTargets) {
     configuredActions.push(sendTelegramMessage(chatId, text));
   }
 

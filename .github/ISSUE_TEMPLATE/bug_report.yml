@@ -40,7 +40,6 @@ body:
       label: Workspace / Component
       options:
         - Web App (apps/web)
-        - Mobile App (apps/mobile)
         - Safety & SOS Dispatch
         - Supabase & Auth
         - Monorepo / CI/CD

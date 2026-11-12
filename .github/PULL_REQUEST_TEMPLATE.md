@@ -16,7 +16,6 @@ Fixes #(issue)
 ## Affected Workspaces
 
 - [ ] `apps/web`
-- [ ] `apps/mobile`
 - [ ] `packages/constants`
 - [ ] `packages/types`
 - [ ] `packages/utils`

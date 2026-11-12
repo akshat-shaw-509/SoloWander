@@ -44,11 +44,14 @@ export default function SafetyRealtime({
         : "unsupported",
     );
 
+  const tablesKey = tables.slice().sort().join(",");
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel(channelName);
+    const activeTables = tablesKey ? tablesKey.split(",") : [];
 
-    for (const table of tables) {
+    for (const table of activeTables) {
       channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table },
@@ -79,7 +82,7 @@ export default function SafetyRealtime({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [channelName, notifyIncidents, router, tables]);
+  }, [channelName, notifyIncidents, router, tablesKey]);
 
   async function enableNotifications() {
     if (!("Notification" in window)) {

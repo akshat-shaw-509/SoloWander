@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,7 +26,7 @@ export default function RegisterPage() {
     try {
       const supabase = createClient();
       const {
-        data: { user },
+        data: { user, session },
         error,
       } = await supabase.auth.signUp({
         email,
@@ -40,17 +41,17 @@ export default function RegisterPage() {
         return;
       }
 
-      if (user) {
-        const { error: profileError } = await supabase.from("users").upsert({
+      if (user && !session) {
+        setPendingEmail(email);
+        return;
+      }
+
+      if (user && session) {
+        await supabase.from("users").upsert({
           id: user.id,
           email,
           name,
         });
-
-        if (profileError) {
-          setErrorMessage(profileError.message);
-          return;
-        }
       }
 
       router.push("/dashboard");
@@ -64,6 +65,34 @@ export default function RegisterPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (pendingEmail) {
+    return (
+      <main className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md rounded-3xl bg-white border border-gray-200 shadow-xl p-8 text-center">
+          <Link href="/" className="text-2xl font-bold text-[var(--dark)]">
+            SoloWander
+          </Link>
+          <div className="mt-8 mx-auto w-16 h-16 rounded-full bg-green-50 flex items-center justify-center text-green-600 text-2xl font-bold">
+            ✓
+          </div>
+          <h1 className="mt-6 text-2xl font-bold text-[var(--dark)]">Verify your email</h1>
+          <p className="mt-3 text-sm text-gray-600 leading-relaxed">
+            We sent a verification link to <strong className="text-[var(--dark)]">{pendingEmail}</strong>.
+            Please click the link in your email to activate your account, then log in.
+          </p>
+          <div className="mt-8">
+            <Link
+              href="/login"
+              className="inline-block w-full py-3.5 rounded-xl bg-[var(--primary)] text-white font-semibold hover:bg-[#c94508] transition-colors"
+            >
+              Continue to Log In
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -133,7 +162,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-xl bg-[var(--primary)] py-3 font-semibold text-white transition-colors hover:bg-[#c94508]"
+            className="w-full rounded-xl bg-[var(--primary)] py-3 font-semibold text-white transition-colors hover:bg-[#c94508] disabled:opacity-60"
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>

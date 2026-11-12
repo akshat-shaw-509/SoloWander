@@ -10,8 +10,17 @@ const dbName = "solowander-safety";
 const storeName = "sosQueue";
 const dbVersion = 1;
 
+function hasIndexedDb(): boolean {
+  return typeof window !== "undefined" && typeof indexedDB !== "undefined";
+}
+
 function openQueueDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
+    if (!hasIndexedDb()) {
+      reject(new Error("IndexedDB is not available"));
+      return;
+    }
+
     const request = indexedDB.open(dbName, dbVersion);
 
     request.onupgradeneeded = () => {
@@ -47,18 +56,31 @@ async function withStore<T>(
 }
 
 export async function enqueueSos(payload: QueuedSos) {
+  if (!hasIndexedDb()) {
+    return;
+  }
   await withStore("readwrite", (store) => store.put(payload));
 }
 
 export async function removeQueuedSos(sosId: string) {
+  if (!hasIndexedDb()) {
+    return;
+  }
   await withStore("readwrite", (store) => store.delete(sosId));
 }
 
-export async function getQueuedSos() {
-  return withStore<QueuedSos[]>("readonly", (store) => store.getAll());
+export async function getQueuedSos(): Promise<QueuedSos[]> {
+  if (!hasIndexedDb()) {
+    return [];
+  }
+  try {
+    return await withStore<QueuedSos[]>("readonly", (store) => store.getAll());
+  } catch {
+    return [];
+  }
 }
 
-export async function queuedSosCount() {
+export async function queuedSosCount(): Promise<number> {
   const queued = await getQueuedSos();
   return queued.length;
 }

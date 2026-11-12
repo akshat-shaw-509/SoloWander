@@ -56,12 +56,16 @@ function fillFormLocation(
   form: HTMLFormElement,
   location: NormalizedSosLocation,
 ) {
-  (form.elements.namedItem("lat") as HTMLInputElement).value =
-    location.latitude === null ? "" : String(location.latitude);
-  (form.elements.namedItem("lng") as HTMLInputElement).value =
-    location.longitude === null ? "" : String(location.longitude);
-  (form.elements.namedItem("accuracy") as HTMLInputElement).value =
-    location.accuracy === null ? "" : String(location.accuracy);
+  const setInputValue = (name: string, value: string) => {
+    const el = form.elements.namedItem(name) as HTMLInputElement | null;
+    if (el) {
+      el.value = value;
+    }
+  };
+
+  setInputValue("lat", location.latitude === null ? "" : String(location.latitude));
+  setInputValue("lng", location.longitude === null ? "" : String(location.longitude));
+  setInputValue("accuracy", location.accuracy === null ? "" : String(location.accuracy));
 }
 
 function normalizePhone(phone?: string | null) {

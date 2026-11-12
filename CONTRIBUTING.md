@@ -50,8 +50,7 @@ SoloWander uses [Turborepo](https://turbo.build/repo) with npm workspaces:
 ```
 SoloWander/
 ├── apps/
-│   ├── web/        # Next.js 16 app with React 19, Tailwind CSS v4, Lucide icons
-│   └── mobile/     # Expo / React Native mobile application
+│   └── web/        # Next.js 16 app with React 19, Tailwind CSS v4, Lucide icons
 ├── packages/
 │   ├── constants/  # Shared constants and configurations
 │   ├── types/      # Shared TypeScript type definitions

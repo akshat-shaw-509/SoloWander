@@ -41,7 +41,7 @@ export default function LandingPage() {
               Log in
             </Link>
             <Link href="/register" className="px-5 py-2 rounded-full bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#c94508] transition-colors shadow-lg shadow-orange-500/20">
-              Try on Web
+              Get Started
             </Link>
           </div>
         </div>
@@ -65,7 +65,7 @@ export default function LandingPage() {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
               <Link href="/register" className="w-full sm:w-auto px-8 py-4 rounded-full bg-[var(--dark)] text-white font-semibold hover:bg-gray-800 transition-colors shadow-xl flex items-center justify-center gap-2">
-                Get the App <ChevronRight className="w-4 h-4" />
+                Start Exploring <ChevronRight className="w-4 h-4" />
               </Link>
               <Link href="#features" className="w-full sm:w-auto px-8 py-4 rounded-full bg-white text-[var(--dark)] border border-gray-200 font-semibold hover:bg-gray-50 transition-colors">
                 See Features

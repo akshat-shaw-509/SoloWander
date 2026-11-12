@@ -33,7 +33,6 @@ body:
       label: Target Component
       options:
         - Web App (apps/web)
-        - Mobile App (apps/mobile)
         - Safety & Offline SOS
         - Community & Reviews
         - Expense & Affordability Engine

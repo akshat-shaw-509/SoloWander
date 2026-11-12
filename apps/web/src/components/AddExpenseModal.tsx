@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Loader2 } from "lucide-react";
 
 import { createExpense } from "@/app/dashboard/actions";
 
@@ -29,13 +29,26 @@ export default function AddExpenseModal({
   defaultTripId,
 }: AddExpenseModalProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleOpen = () => {
+    setErrorMessage(null);
+    setIsOpen(true);
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) return;
+    setErrorMessage(null);
+    setIsOpen(false);
+  };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white"
+        onClick={handleOpen}
+        className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
       >
         <Plus className="h-4 w-4" />
         Add Expense
@@ -50,8 +63,9 @@ export default function AddExpenseModal({
               </h2>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 aria-label="Close"
                 title="Close"
               >
@@ -61,11 +75,31 @@ export default function AddExpenseModal({
 
             <form
               action={async (formData) => {
-                await createExpense(formData);
-                setIsOpen(false);
+                if (isSubmitting) return;
+                setIsSubmitting(true);
+                setErrorMessage(null);
+
+                try {
+                  await createExpense(formData);
+                  setIsOpen(false);
+                } catch (err) {
+                  setErrorMessage(
+                    err instanceof Error
+                      ? err.message
+                      : "Failed to create expense. Please try again.",
+                  );
+                } finally {
+                  setIsSubmitting(false);
+                }
               }}
               className="space-y-4 p-5"
             >
+              {errorMessage && (
+                <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+                  {errorMessage}
+                </div>
+              )}
+
               <div>
                 <label
                   htmlFor="expense-name"
@@ -77,7 +111,8 @@ export default function AddExpenseModal({
                   id="expense-name"
                   name="name"
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100"
+                  disabled={isSubmitting}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100 disabled:bg-gray-100"
                   placeholder="Hostel dorm, train ticket..."
                 />
               </div>
@@ -97,7 +132,8 @@ export default function AddExpenseModal({
                     min="0.01"
                     step="0.01"
                     required
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100"
+                    disabled={isSubmitting}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100 disabled:bg-gray-100"
                     placeholder="750"
                   />
                 </div>
@@ -112,7 +148,8 @@ export default function AddExpenseModal({
                   <select
                     id="expense-category"
                     name="category"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100"
+                    disabled={isSubmitting}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100 disabled:bg-gray-100"
                   >
                     {categories.map((category) => (
                       <option key={category} value={category}>
@@ -135,7 +172,8 @@ export default function AddExpenseModal({
                     id="expense-trip"
                     name="trip_id"
                     defaultValue={defaultTripId ?? ""}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100"
+                    disabled={isSubmitting}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100 disabled:bg-gray-100"
                   >
                     <option value="">No trip</option>
                     {trips.map((trip) => (
@@ -158,7 +196,8 @@ export default function AddExpenseModal({
                     name="expense_date"
                     type="date"
                     defaultValue={new Date().toISOString().slice(0, 10)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100"
+                    disabled={isSubmitting}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100 disabled:bg-gray-100"
                   />
                 </div>
               </div>
@@ -174,7 +213,8 @@ export default function AddExpenseModal({
                   id="expense-notes"
                   name="notes"
                   rows={3}
-                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100"
+                  disabled={isSubmitting}
+                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-orange-100 disabled:bg-gray-100"
                   placeholder="Optional details"
                 />
               </div>
@@ -182,16 +222,25 @@ export default function AddExpenseModal({
               <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  Save expense
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save expense"
+                  )}
                 </button>
               </div>
             </form>

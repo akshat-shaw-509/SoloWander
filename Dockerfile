@@ -10,7 +10,6 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json turbo.json ./
 COPY apps/web/package.json ./apps/web/
-COPY apps/mobile/package.json ./apps/mobile/
 COPY packages/constants/package.json ./packages/constants/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
