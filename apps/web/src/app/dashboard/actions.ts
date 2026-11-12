@@ -543,6 +543,7 @@ export async function createSafetyIncident(formData: FormData) {
   await createSafetyIncidentRecord({
     supabase,
     userId: user.id,
+    userEmail: user.email,
     payload: safetyIncidentPayloadFromFormData(formData),
   });
 

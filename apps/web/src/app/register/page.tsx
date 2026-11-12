@@ -6,6 +6,26 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
+function formatAuthErrorMessage(error: unknown, fallback: string): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : fallback;
+
+  if (
+    message.includes("Failed to fetch") ||
+    message.includes("NetworkError") ||
+    message.includes("Load failed") ||
+    message.includes("fetch failed")
+  ) {
+    return "Unable to connect to the Supabase authentication server. Please verify that your Supabase project is active (not paused in your Supabase Dashboard) and that NEXT_PUBLIC_SUPABASE_URL is valid.";
+  }
+
+  return message;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -37,7 +57,9 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        setErrorMessage(error.message);
+        setErrorMessage(
+          formatAuthErrorMessage(error, "Unable to create your account."),
+        );
         return;
       }
 
@@ -58,9 +80,10 @@ export default function RegisterPage() {
       router.refresh();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to create your account. Please try again.",
+        formatAuthErrorMessage(
+          error,
+          "Unable to create your account. Please try again.",
+        ),
       );
     } finally {
       setIsSubmitting(false);

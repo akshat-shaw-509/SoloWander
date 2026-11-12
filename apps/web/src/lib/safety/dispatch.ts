@@ -10,10 +10,11 @@ type SupabaseLike = {
   };
 };
 
-type IncidentDispatchInput = {
+export type IncidentDispatchInput = {
   supabase: unknown;
   incidentId: string;
   userId: string;
+  userEmail?: string | null;
   incidentType: string;
   severity: string;
   description: string | null;
@@ -36,7 +37,7 @@ type AuthorityProfile = {
   control_room_phone?: string | null;
 };
 
-type DispatchResult = {
+export type DispatchResult = {
   channel: string;
   target: string;
   status: "sent" | "skipped" | "failed";
@@ -137,23 +138,32 @@ async function sendTwilioMessage(
     };
   }
 
-  const response = await postTwilio(
-    "Messages.json",
-    new URLSearchParams({
-      To: channel === "whatsapp" ? toWhatsappAddress(to) : stripWhatsappPrefix(to),
-      From: channel === "whatsapp" ? toWhatsappAddress(from) : stripWhatsappPrefix(from),
-      Body: message.slice(0, 1500),
-    }),
-  );
+  try {
+    const response = await postTwilio(
+      "Messages.json",
+      new URLSearchParams({
+        To: channel === "whatsapp" ? toWhatsappAddress(to) : stripWhatsappPrefix(to),
+        From: channel === "whatsapp" ? toWhatsappAddress(from) : stripWhatsappPrefix(from),
+        Body: message.slice(0, 1500),
+      }),
+    );
 
-  return {
-    channel,
-    target: to,
-    status: response.ok ? "sent" : "failed",
-    detail: response.ok
-      ? "Queued by Twilio"
-      : `Twilio returned HTTP ${response.status}`,
-  };
+    return {
+      channel,
+      target: to,
+      status: response.ok ? "sent" : "failed",
+      detail: response.ok
+        ? "Queued by Twilio"
+        : `Twilio returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      channel,
+      target: to,
+      status: "failed",
+      detail: error instanceof Error ? error.message : "Twilio dispatch error",
+    };
+  }
 }
 
 async function placeTwilioCall(
@@ -171,24 +181,33 @@ async function placeTwilioCall(
     };
   }
 
-  const twiml = `<Response><Say>${xmlEscape(message.slice(0, 900))}</Say></Response>`;
-  const response = await postTwilio(
-    "Calls.json",
-    new URLSearchParams({
-      To: stripWhatsappPrefix(to),
-      From: stripWhatsappPrefix(from),
-      Twiml: twiml,
-    }),
-  );
+  try {
+    const twiml = `<Response><Say>${xmlEscape(message.slice(0, 900))}</Say></Response>`;
+    const response = await postTwilio(
+      "Calls.json",
+      new URLSearchParams({
+        To: stripWhatsappPrefix(to),
+        From: stripWhatsappPrefix(from),
+        Twiml: twiml,
+      }),
+    );
 
-  return {
-    channel: "phone",
-    target: to,
-    status: response.ok ? "sent" : "failed",
-    detail: response.ok
-      ? "Queued by Twilio Voice"
-      : `Twilio returned HTTP ${response.status}`,
-  };
+    return {
+      channel: "phone",
+      target: to,
+      status: response.ok ? "sent" : "failed",
+      detail: response.ok
+        ? "Queued by Twilio Voice"
+        : `Twilio returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      channel: "phone",
+      target: to,
+      status: "failed",
+      detail: error instanceof Error ? error.message : "Twilio call error",
+    };
+  }
 }
 
 async function sendEmail(
@@ -208,27 +227,36 @@ async function sendEmail(
     };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: to.split(",").map((item) => item.trim()).filter(Boolean),
-      subject,
-      text,
-      html: `<pre style="font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap">${htmlEscape(text)}</pre>`,
-    }),
-  });
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: to.split(",").map((item) => item.trim()).filter(Boolean),
+        subject,
+        text,
+        html: `<pre style="font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap">${htmlEscape(text)}</pre>`,
+      }),
+    });
 
-  return {
-    channel: "email",
-    target: to,
-    status: response.ok ? "sent" : "failed",
-    detail: response.ok ? "Queued by Resend" : `Resend returned HTTP ${response.status}`,
-  };
+    return {
+      channel: "email",
+      target: to,
+      status: response.ok ? "sent" : "failed",
+      detail: response.ok ? "Queued by Resend" : `Resend returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      channel: "email",
+      target: to,
+      status: "failed",
+      detail: error instanceof Error ? error.message : "Resend email error",
+    };
+  }
 }
 
 function splitCsv(value: string) {
@@ -253,27 +281,52 @@ async function sendTelegramMessage(
     };
   }
 
-  const response = await fetch(
-    `https://api.telegram.org/bot${token}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text.slice(0, 4096),
-        disable_web_page_preview: false,
-      }),
-    },
-  );
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: text.slice(0, 4096),
+        }),
+      },
+    );
 
-  return {
-    channel: "telegram",
-    target: chatId,
-    status: response.ok ? "sent" : "failed",
-    detail: response.ok
-      ? "Queued by Telegram Bot API"
-      : `Telegram returned HTTP ${response.status}`,
-  };
+    const body = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      description?: string;
+    } | null;
+
+    if (response.ok && body?.ok) {
+      return {
+        channel: "telegram",
+        target: chatId,
+        status: "sent",
+        detail: "Delivered by Telegram Bot API",
+      };
+    }
+
+    return {
+      channel: "telegram",
+      target: chatId,
+      status: "failed",
+      detail:
+        body?.description ||
+        `Telegram returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      channel: "telegram",
+      target: chatId,
+      status: "failed",
+      detail:
+        error instanceof Error
+          ? error.message
+          : "Failed to connect to Telegram API",
+    };
+  }
 }
 
 async function sendDiscordWebhook(text: string): Promise<DispatchResult> {
@@ -288,91 +341,122 @@ async function sendDiscordWebhook(text: string): Promise<DispatchResult> {
     };
   }
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      content: text.slice(0, 1900),
-      allowed_mentions: { parse: [] },
-    }),
-  });
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: text.slice(0, 1900),
+        allowed_mentions: { parse: [] },
+      }),
+    });
 
-  return {
-    channel: "discord",
-    target: webhookUrl,
-    status: response.ok ? "sent" : "failed",
-    detail: response.ok
-      ? "Posted to Discord webhook"
-      : `Discord returned HTTP ${response.status}`,
-  };
+    return {
+      channel: "discord",
+      target: "configured webhook",
+      status: response.ok ? "sent" : "failed",
+      detail: response.ok
+        ? "Accepted by Discord"
+        : `Discord returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      channel: "discord",
+      target: "configured webhook",
+      status: "failed",
+      detail: error instanceof Error ? error.message : "Discord webhook error",
+    };
+  }
 }
 
 async function postWebhook(
   payload: Record<string, unknown>,
 ): Promise<DispatchResult> {
-  const webhookUrl = env("SOS_DISPATCH_WEBHOOK_URL");
+  const webhookUrl = env("SOS_ALERT_WEBHOOK_URL");
 
   if (!webhookUrl) {
     return {
       channel: "webhook",
-      target: "missing URL",
-      status: "skipped" as const,
-      detail: "SOS_DISPATCH_WEBHOOK_URL is not configured",
+      target: "missing webhook",
+      status: "skipped",
+      detail: "SOS_ALERT_WEBHOOK_URL is not configured",
     };
   }
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(env("SOS_DISPATCH_WEBHOOK_SECRET")
-        ? { Authorization: `Bearer ${env("SOS_DISPATCH_WEBHOOK_SECRET")}` }
-        : {}),
-    },
-    body: JSON.stringify(payload),
-  });
+  const secret = env("SOS_ALERT_WEBHOOK_SECRET");
 
-  return {
-    channel: "webhook",
-    target: webhookUrl,
-    status: response.ok ? "sent" : "failed",
-    detail: response.ok ? "Webhook accepted" : `Webhook returned HTTP ${response.status}`,
-  };
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret
+          ? {
+              "x-solowander-signature": secret,
+            }
+          : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    return {
+      channel: "webhook",
+      target: webhookUrl,
+      status: response.ok ? "sent" : "failed",
+      detail: response.ok ? "Webhook accepted" : `Webhook returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      channel: "webhook",
+      target: webhookUrl,
+      status: "failed",
+      detail: error instanceof Error ? error.message : "Webhook request error",
+    };
+  }
 }
 
 async function getProfile(supabase: SupabaseLike, userId: string) {
-  const query = supabase
-    .from("tourist_safety_profiles")
-    .select(
-      "full_name, phone, emergency_contact_name, emergency_contact_phone, digital_id_code, medical_notes",
-    )
-    .eq("user_id", userId);
+  try {
+    const query = supabase
+      .from("tourist_safety_profiles")
+      .select(
+        "full_name, phone, emergency_contact_name, emergency_contact_phone, digital_id_code, medical_notes",
+      )
+      .eq("user_id", userId);
 
-  if (!query.maybeSingle) {
+    if (!query?.maybeSingle) {
+      return null;
+    }
+
+    const { data } = await query.maybeSingle();
+    return (data as TouristProfile) || null;
+  } catch {
     return null;
   }
-
-  const { data } = await query.maybeSingle();
-  return data as TouristProfile | null;
 }
 
 async function getAuthorityPhones(supabase: SupabaseLike) {
-  const query = supabase
-    .from("authority_profiles")
-    .select("operator_name, control_room_phone");
+  try {
+    const query = supabase
+      .from("authority_profiles")
+      .select("operator_name, control_room_phone");
 
-  if (!query.limit) {
+    if (!query?.limit) {
+      return [];
+    }
+
+    const { data } = await query.limit(20);
+    return (Array.isArray(data) ? data : []) as AuthorityProfile[];
+  } catch {
     return [];
   }
-
-  const { data } = await query.limit(20);
-  return (Array.isArray(data) ? data : []) as AuthorityProfile[];
 }
 
 export async function dispatchSafetyIncident({
   supabase,
   incidentId,
   userId,
+  userEmail,
   incidentType,
   severity,
   description,
@@ -381,6 +465,7 @@ export async function dispatchSafetyIncident({
   aiSummary,
 }: IncidentDispatchInput) {
   const db = supabase as SupabaseLike;
+
   const [profile, authorityProfiles] = await Promise.all([
     getProfile(db, userId),
     getAuthorityPhones(db),
@@ -391,32 +476,37 @@ export async function dispatchSafetyIncident({
     .map((authority) => authority.control_room_phone)
     .filter((phone): phone is string => Boolean(phone));
   const phoneTargets = Array.from(new Set([emergencyPhone, ...authorityPhones]));
+
+  const travellerName = profile?.full_name || userEmail || "Solo Traveller";
   const subject = `SoloWander SOS: ${severity.toUpperCase()} ${incidentType}`;
-  const text = compact(`
-    [SOS ALERT] ${severity.toUpperCase()} PRIORITY
-    IMMEDIATE ATTENTION REQUIRED
-    ${subject}
-    ------------------------------
-    Incident ID: ${incidentId}
-    Incident type: ${incidentType.replaceAll("_", " ")}
-    Reported: ${new Date().toISOString()}
-    Traveller: ${profile?.full_name || "Unknown"} ${profile?.digital_id_code ? `(${profile.digital_id_code})` : ""}
-    Traveller phone: ${profile?.phone || "Not provided"}
-    Emergency contact: ${profile?.emergency_contact_name || "Not provided"} ${emergencyPhone || ""}
-    Medical notes: ${profile?.medical_notes || "None"}
-    AI triage: ${aiSummary}
-    Details: ${description || "No details provided"}
-    Location: ${mapsLink(lat, lng)}
-    Coordinates: ${lat !== null && lng !== null ? `${lat}, ${lng}` : "Unavailable"}
-    ------------------------------
-    ACTION: Contact the traveller and open the authority dashboard now.
-  `);
+
+  const text = [
+    `🚨 [SOLOWANDER SOS EMERGENCY ALERT] 🚨`,
+    `Priority: ${severity.toUpperCase()}`,
+    `Type: ${incidentType.replaceAll("_", " ").toUpperCase()}`,
+    `Reported: ${new Date().toISOString()}`,
+    `----------------------------------------`,
+    `Incident ID: ${incidentId}`,
+    `Traveller: ${travellerName} ${profile?.digital_id_code ? `(ID: ${profile.digital_id_code})` : ""}`,
+    `Traveller Phone: ${profile?.phone || "Not provided"}`,
+    `Emergency Contact: ${profile?.emergency_contact_name || "Not provided"} ${emergencyPhone ? `(${emergencyPhone})` : ""}`,
+    `Medical Notes: ${profile?.medical_notes || "None"}`,
+    `AI Triage: ${aiSummary}`,
+    `Details: ${description || "Emergency SOS Triggered"}`,
+    `Location: ${mapsLink(lat, lng)}`,
+    `Coordinates: ${lat !== null && lng !== null ? `${lat}, ${lng}` : "Unavailable"}`,
+    `----------------------------------------`,
+    `ACTION: Check on traveller safety and view the authority dashboard immediately.`,
+  ].join("\n");
+
   const voiceText = compact(
-    `SoloWander SOS alert. ${profile?.full_name || "A traveller"} reported ${incidentType}. Severity ${severity}. Location: ${lat !== null && lng !== null ? `${lat}, ${lng}` : "unavailable"}. Open the authority dashboard now.`,
+    `SoloWander SOS alert. ${travellerName} reported ${incidentType}. Severity ${severity}. Location: ${lat !== null && lng !== null ? `${lat}, ${lng}` : "unavailable"}. Open the authority dashboard now.`,
   );
+
   const payload = {
     incidentId,
     userId,
+    userEmail,
     incidentType,
     severity,
     description,
