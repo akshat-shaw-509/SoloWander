@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import {
   Ambulance,
   BadgeCheck,
@@ -19,6 +20,7 @@ import {
   startSafetySession,
 } from "@/app/dashboard/actions";
 import SafetyRealtime from "@/components/SafetyRealtime";
+import SentinelAgentPanel from "@/components/SentinelAgentPanel";
 import TouristSafetyControls from "@/components/TouristSafetyControls";
 import { createClient } from "@/lib/supabase/server";
 
@@ -171,68 +173,154 @@ function DigitalIdPattern({ code }: { code: string }) {
 
 export default async function SafetyPage({ searchParams }: SafetyPageProps) {
   const { country, error, updated } = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  const [
-    { data: profileData },
-    { data: tripsData },
-    { data: sessionData },
-    { data: incidentsData },
-    { data: pingsData },
-    { data: zonesData },
-    { data: contactsData },
-  ] = await Promise.all([
-    supabase
-      .from("tourist_safety_profiles")
-      .select("id, full_name, phone, emergency_contact_name, emergency_contact_phone, blood_group, medical_notes, home_country, digital_id_code, is_location_sharing_enabled")
-      .eq("user_id", user?.id)
-      .maybeSingle(),
-    supabase
-      .from("trips")
-      .select("id, destination")
-      .eq("user_id", user?.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("safety_sessions")
-      .select("id, trip_id, risk_level, started_at, last_lat, last_lng, last_check_in_at, last_geofence_zone_id")
-      .eq("user_id", user?.id)
-      .eq("status", "active")
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("safety_incidents")
-      .select("id, incident_type, severity, status, description, ai_summary, created_at, location_source, location_timestamp, location_confidence, sync_status")
-      .eq("user_id", user?.id)
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("location_pings")
-      .select("id, lat, lng, accuracy_meters, created_at")
-      .eq("user_id", user?.id)
-      .order("created_at", { ascending: false })
-      .limit(3),
-    supabase
-      .from("geofence_zones")
-      .select("id, name, zone_type, severity, city, state, radius_meters, safety_message")
-      .eq("is_active", true)
-      .order("severity", { ascending: true }),
-    supabase
-      .from("emergency_contacts")
-      .select("id, country, country_code, police, ambulance, fire, tourist_helpline, women_helpline")
-      .order("country", { ascending: true }),
-  ]);
+  let user = null;
+  let profileData = null;
+  let tripsData: unknown[] = [];
+  let sessionData = null;
+  let incidentsData: unknown[] = [];
+  let pingsData: unknown[] = [];
+  let zonesData: unknown[] = [];
+  let contactsData: unknown[] = [];
 
-  const profile = profileData as TouristSafetyProfile | null;
-  const trips = (tripsData ?? []) as TripOption[];
-  const activeSession = sessionData as SafetySession | null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    user = authUser;
+
+    const [
+      { data: pData },
+      { data: tData },
+      { data: sData },
+      { data: iData },
+      { data: piData },
+      { data: zData },
+      { data: cData },
+    ] = await Promise.all([
+      supabase
+        .from("tourist_safety_profiles")
+        .select("id, full_name, phone, emergency_contact_name, emergency_contact_phone, blood_group, medical_notes, home_country, digital_id_code, is_location_sharing_enabled")
+        .eq("user_id", user?.id)
+        .maybeSingle(),
+      supabase
+        .from("trips")
+        .select("id, destination")
+        .eq("user_id", user?.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("safety_sessions")
+        .select("id, trip_id, risk_level, started_at, last_lat, last_lng, last_check_in_at, last_geofence_zone_id")
+        .eq("user_id", user?.id)
+        .eq("status", "active")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("safety_incidents")
+        .select("id, incident_type, severity, status, description, ai_summary, created_at, location_source, location_timestamp, location_confidence, sync_status")
+        .eq("user_id", user?.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("location_pings")
+        .select("id, lat, lng, accuracy_meters, created_at")
+        .eq("user_id", user?.id)
+        .order("created_at", { ascending: false })
+        .limit(3),
+      supabase
+        .from("geofence_zones")
+        .select("id, name, zone_type, severity, city, state, radius_meters, safety_message")
+        .eq("is_active", true)
+        .order("severity", { ascending: true }),
+      supabase
+        .from("emergency_contacts")
+        .select("id, country, country_code, police, ambulance, fire, tourist_helpline, women_helpline")
+        .order("country", { ascending: true }),
+    ]);
+
+    profileData = pData;
+    tripsData = tData ?? [];
+    sessionData = sData;
+    incidentsData = iData ?? [];
+    pingsData = piData ?? [];
+    zonesData = zData ?? [];
+    contactsData = cData ?? [];
+  } catch {
+    // Supabase unconfigured or offline fallback
+  }
+
+  const cookieStore = await cookies();
+  const registeredName = cookieStore.get("solowander_user_name")?.value
+    ? decodeURIComponent(cookieStore.get("solowander_user_name")!.value)
+    : "Govind Prasad Shaw";
+
+  const fallbackProfile: TouristSafetyProfile = {
+    id: "demo-profile-1",
+    full_name: registeredName,
+    phone: "+91 98765 43210",
+    emergency_contact_name: "Akshat Shaw",
+    emergency_contact_phone: "+91 98765 11223",
+    blood_group: "O+",
+    medical_notes: "All standard vaccinations up to date. No known allergies.",
+    home_country: "India",
+    digital_id_code: "SW-TOURIST-84920",
+    is_location_sharing_enabled: true,
+  };
+
+  const fallbackZones: GeofenceZone[] = [
+    {
+      id: "zone-1",
+      name: "Solang Valley Ridge Trail",
+      zone_type: "caution",
+      severity: "medium",
+      city: "Manali",
+      state: "Himachal Pradesh",
+      radius_meters: 500,
+      safety_message: "High altitude rocky pass. Stay on marked trail.",
+    },
+    {
+      id: "zone-2",
+      name: "Old Manali Remote Forest",
+      zone_type: "restricted",
+      severity: "high",
+      city: "Manali",
+      state: "Himachal Pradesh",
+      radius_meters: 800,
+      safety_message: "Isolated forest area. Night travel not advised.",
+    },
+  ];
+
+  const fallbackContacts: EmergencyContact[] = [
+    {
+      id: "contact-1",
+      country: "India",
+      country_code: "+91",
+      police: "112",
+      ambulance: "108",
+      fire: "101",
+      tourist_helpline: "1363",
+      women_helpline: "1091",
+    },
+  ];
+
+  const profile = (profileData as TouristSafetyProfile | null) || fallbackProfile;
+  const trips = (tripsData.length > 0 ? tripsData : [{ id: "trip-1", destination: "Manali & Rohtang Pass" }]) as TripOption[];
+  const activeSession = (sessionData as SafetySession | null) || {
+    id: "session-demo",
+    trip_id: "trip-1",
+    risk_level: "green",
+    started_at: new Date().toISOString(),
+    last_lat: 28.6139,
+    last_lng: 77.2090,
+    last_check_in_at: new Date().toISOString(),
+    last_geofence_zone_id: "zone-1",
+  };
   const incidents = (incidentsData ?? []) as SafetyIncident[];
   const pings = (pingsData ?? []) as LocationPing[];
-  const zones = (zonesData ?? []) as GeofenceZone[];
-  const contacts = (contactsData ?? []) as EmergencyContact[];
+  const zones = (zonesData.length > 0 ? zonesData : fallbackZones) as GeofenceZone[];
+  const contacts = (contactsData.length > 0 ? contactsData : fallbackContacts) as EmergencyContact[];
   const activeTrip = trips.find((trip) => trip.id === activeSession?.trip_id);
   const activeZone = zones.find(
     (zone) => zone.id === activeSession?.last_geofence_zone_id,
@@ -288,6 +376,21 @@ export default async function SafetyPage({ searchParams }: SafetyPageProps) {
             : "Complete the required safety details before continuing."}
         </div>
       ) : null}
+
+      <section className="mt-6">
+        <SentinelAgentPanel
+          sessionId={activeSession?.id}
+          tripId={activeSession?.trip_id}
+          travelerName={profile?.full_name || "Solo Adventurer"}
+          emergencyContactName={profile?.emergency_contact_name}
+          emergencyContactPhone={
+            profile?.emergency_contact_phone ||
+            selectedContacts[0]?.police ||
+            selectedContacts[0]?.tourist_helpline ||
+            "+91-112"
+          }
+        />
+      </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-lg border border-gray-200 bg-white p-5">

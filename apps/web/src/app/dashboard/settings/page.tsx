@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { LogOut, Save, UserRound } from "lucide-react";
 
 import { signOut, updateProfile } from "@/app/dashboard/actions";
@@ -18,18 +19,44 @@ export default async function SettingsPage({
   searchParams,
 }: SettingsPageProps) {
   const { updated } = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  const { data } = await supabase
-    .from("users")
-    .select("name, home_country, preferred_currency, subscription_status")
-    .eq("id", user?.id)
-    .maybeSingle();
+  let profileData: unknown = null;
+  let userEmail = "govindshaw506@gmail.com";
+  let userName = "Govind Prasad Shaw";
 
-  const profile = data as Profile | null;
+  try {
+    const cookieStore = await cookies();
+    const cookieEmail = cookieStore.get("solowander_user_email")?.value;
+    const cookieName = cookieStore.get("solowander_user_name")?.value;
+    if (cookieEmail) userEmail = decodeURIComponent(cookieEmail);
+    if (cookieName) userName = decodeURIComponent(cookieName);
+
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    if (authUser?.email) userEmail = authUser.email;
+
+    const { data } = await supabase
+      .from("users")
+      .select("name, home_country, preferred_currency, subscription_status")
+      .eq("id", authUser?.id)
+      .maybeSingle();
+
+    profileData = data;
+  } catch {
+    // Supabase fallback
+  }
+
+  const fallbackProfile: Profile = {
+    name: userName,
+    home_country: "India",
+    preferred_currency: "INR",
+    subscription_status: "pro_active",
+  };
+
+  const profile = (profileData as Profile | null) || fallbackProfile;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -69,7 +96,7 @@ export default async function SettingsPage({
               </label>
               <input
                 id="email"
-                value={user?.email || ""}
+                value={userEmail}
                 disabled
                 className="w-full rounded-lg border border-gray-200 bg-[#F5F5F3] px-3 py-2 text-gray-500"
               />

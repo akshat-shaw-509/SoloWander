@@ -9,6 +9,17 @@ export async function proxy(request: NextRequest) {
     pathname === "/dashboard" || pathname.startsWith("/dashboard/");
   const isAuthRoute = authRoutes.has(pathname);
 
+  // Allow instant demo mode access without Supabase connection
+  const isDemo = request.cookies.get("solowander_demo_mode")?.value === "true";
+  if (isDemo) {
+    if (isAuthRoute) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/dashboard/safety";
+      return NextResponse.redirect(redirectUrl);
+    }
+    return NextResponse.next();
+  }
+
   const { response, user } = await updateSession(request);
 
   if (!user && isDashboardRoute) {

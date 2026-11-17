@@ -180,16 +180,29 @@ export default async function AuthorityPage({
   searchParams,
 }: AuthorityPageProps) {
   const { error, updated } = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  const { data: authorityData } = await supabase
-    .from("authority_profiles")
-    .select("id, operator_name, department, jurisdiction, control_room_phone")
-    .eq("user_id", user?.id)
-    .maybeSingle();
+  let authorityData = null;
+  let supabase = null;
+  let user: { id: string } | null = null;
+
+  try {
+    supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    user = authUser;
+
+    const { data } = await supabase
+      .from("authority_profiles")
+      .select("id, operator_name, department, jurisdiction, control_room_phone")
+      .eq("user_id", user?.id)
+      .maybeSingle();
+
+    authorityData = data;
+  } catch {
+    // Supabase fallback
+  }
 
   const authority = authorityData as AuthorityProfile | null;
 
@@ -294,45 +307,65 @@ export default async function AuthorityPage({
     );
   }
 
-  const [
-    { data: incidentsData },
-    { data: sessionsData },
-    { data: profilesData },
-    { data: respondersData },
-    { data: zonesData },
-    { data: pingsData },
-  ] = await Promise.all([
-    supabase
-      .from("safety_incidents")
-      .select("id, client_sos_id, user_id, incident_type, severity, status, description, lat, lng, ai_summary, created_at, response_priority, assigned_responder_id, location_source, location_timestamp, location_confidence, sync_status, search_area")
-      .order("created_at", { ascending: false })
-      .limit(25),
-    supabase
-      .from("safety_sessions")
-      .select("id, user_id, risk_level, started_at, last_lat, last_lng, last_check_in_at")
-      .eq("status", "active")
-      .order("started_at", { ascending: false })
-      .limit(25),
-    supabase
-      .from("tourist_safety_profiles")
-      .select("user_id, full_name, phone, digital_id_code, emergency_contact_phone"),
-    supabase
-      .from("authority_responders")
-      .select("id, name, role, phone, base_city, status")
-      .eq("authority_user_id", user?.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("geofence_zones")
-      .select("id, name, zone_type, severity, city, state, radius_meters, safety_message")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("location_pings")
-      .select("id, user_id, lat, lng, created_at")
-      .order("created_at", { ascending: false })
-      .limit(10),
-  ]);
+  let incidentsData: unknown[] = [];
+  let sessionsData: unknown[] = [];
+  let profilesData: unknown[] = [];
+  let respondersData: unknown[] = [];
+  let zonesData: unknown[] = [];
+  let pingsData: unknown[] = [];
+
+  if (supabase) {
+    try {
+      const [
+        { data: iData },
+        { data: sData },
+        { data: prData },
+        { data: rData },
+        { data: zData },
+        { data: piData },
+      ] = await Promise.all([
+        supabase
+          .from("safety_incidents")
+          .select("id, client_sos_id, user_id, incident_type, severity, status, description, lat, lng, ai_summary, created_at, response_priority, assigned_responder_id, location_source, location_timestamp, location_confidence, sync_status, search_area")
+          .order("created_at", { ascending: false })
+          .limit(25),
+        supabase
+          .from("safety_sessions")
+          .select("id, user_id, risk_level, started_at, last_lat, last_lng, last_check_in_at")
+          .eq("status", "active")
+          .order("started_at", { ascending: false })
+          .limit(25),
+        supabase
+          .from("tourist_safety_profiles")
+          .select("user_id, full_name, phone, digital_id_code, emergency_contact_phone"),
+        supabase
+          .from("authority_responders")
+          .select("id, name, role, phone, base_city, status")
+          .eq("authority_user_id", user?.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("geofence_zones")
+          .select("id, name, zone_type, severity, city, state, radius_meters, safety_message")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase
+          .from("location_pings")
+          .select("id, user_id, lat, lng, created_at")
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ]);
+
+      incidentsData = iData ?? [];
+      sessionsData = sData ?? [];
+      profilesData = prData ?? [];
+      respondersData = rData ?? [];
+      zonesData = zData ?? [];
+      pingsData = piData ?? [];
+    } catch {
+      // Supabase query fallback
+    }
+  }
 
   const incidents = (incidentsData ?? []) as Incident[];
   const sessions = (sessionsData ?? []) as SafetySession[];
