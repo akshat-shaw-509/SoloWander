@@ -186,7 +186,7 @@ Use the included [`Dockerfile`](Dockerfile) which exposes port `3000` and config
 
 ---
 
-## 🔐 Environment Variables
+## 🔐ENV
 
 | Variable | Description | Required | Scope |
 | :--- | :--- | :---: | :--- |
